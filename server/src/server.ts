@@ -4,14 +4,14 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { extname } from 'path';
+import * as path from 'path';
 import { readFileSync } from 'fs';
 
 import {
   IPCMessageReader, IPCMessageWriter,
   createConnection, IConnection,
   TextDocuments, InitializeResult, InitializeParams, DocumentSymbolParams,
-  SymbolInformation, Files, TextDocumentPositionParams, CompletionItem
+  SymbolInformation, Files, TextDocumentPositionParams, CompletionItem, WorkspaceSymbolParams, Location, Range, SymbolKind
 } from 'vscode-languageserver';
 
 const { watch } = require('chokidar');
@@ -57,6 +57,28 @@ export default class Server {
     this.documents.onDidChangeContent(this.onDidChangeContent.bind(this));
     this.connection.onDidChangeWatchedFiles(this.onDidChangeWatchedFiles.bind(this));
     this.connection.onDocumentSymbol(this.onDocumentSymbol.bind(this));
+    this.connection.onWorkspaceSymbol((params: WorkspaceSymbolParams) => {
+      let pattern = params.query.split('').map(text => text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')).join('.*');
+      console.log(pattern);
+      let regex = new RegExp(pattern);
+
+      let result: SymbolInformation[] = [];
+      for (let project of this.projectRoots.projects.values()) {
+        let symbols = project.fileIndex.files.filter(fileInfo => regex.test(fileInfo.toString())).map(fileInfo => {
+          let uri = `file:${path.join(project.root, fileInfo.relativePath)}`;
+          let range = Range.create(0, 0, 0, 0);
+
+          let name = fileInfo.toString();
+          let kind = SymbolKind.Module;
+
+          return SymbolInformation.create(name, kind, range, uri);
+        });
+
+        result.push(...symbols);
+      }
+
+      return result;
+    });
     this.connection.onDefinition(this.definitionProvider.handler);
     this.connection.onCompletion(this.onCompletion.bind(this));
   }
@@ -98,6 +120,7 @@ export default class Server {
 
         definitionProvider: true,
         documentSymbolProvider: true,
+        workspaceSymbolProvider: true,
         completionProvider: true
       }
     };
@@ -127,7 +150,7 @@ export default class Server {
       return [];
     }
 
-    let extension = extname(filePath);
+    let extension = path.extname(filePath);
 
     let providers = this.documentSymbolProviders
       .filter(provider => provider.extensions.indexOf(extension) !== -1);
