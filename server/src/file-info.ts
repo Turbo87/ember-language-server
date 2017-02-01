@@ -5,6 +5,8 @@ const i = require('i')();
 const extensions = ['.js', '.hbs', '.handlebars'];
 
 export abstract class FileInfo {
+  protected _toString: string;
+
   static from(relativePath: string): FileInfo | undefined {
     let ext = path.extname(relativePath);
     if (!extensions.includes(ext)) {
@@ -41,6 +43,10 @@ export abstract class FileInfo {
   get containerName(): string | undefined {
     return undefined;
   }
+
+  toString(): string {
+    return this._toString;
+  }
 }
 
 export class MainFileInfo extends FileInfo {
@@ -50,6 +56,7 @@ export class MainFileInfo extends FileInfo {
     super(relativePath);
 
     this.name = removeExtension(pathParts)[1];
+    this._toString = this.name;
   }
 
   get containerName(): string {
@@ -70,6 +77,8 @@ export class TemplateFileInfo extends FileInfo {
     let nameParts = removeExtension(pathParts.slice(this.forComponent ? 3 : 2));
     this.name = nameParts.join('.');
     this.slashName = nameParts.join('/');
+
+    this._toString = `${this.name} ${this.forComponent ? 'component-template' : 'template'}`;
   }
 }
 
@@ -87,6 +96,8 @@ export class ModuleFileInfo extends FileInfo {
     let nameParts = removeExtension(pathParts.slice(2));
     this.name = nameParts.join('.');
     this.slashName = nameParts.join('/');
+
+    this._toString = `${this.name} ${this.type}`;
   }
 
   get containerName(): string {
@@ -110,6 +121,16 @@ export class ModuleTestFileInfo extends TestFileInfo {
     let nameParts = removeExtension(pathParts.slice(3));
     this.name = nameParts.join('.');
     this.slashName = nameParts.join('/');
+
+    let typeSuffix = `${this.subjectType}-`;
+    if (this.subjectType === 'component' && this.type === 'unit') {
+      typeSuffix += '-unit';
+    } else if (this.subjectType !== 'component' && this.type === 'integration') {
+      typeSuffix += '-integration';
+    }
+    typeSuffix += '-test';
+
+    this._toString = `${this.name} ${typeSuffix}`;
   }
 }
 
@@ -123,6 +144,8 @@ export class AcceptanceTestFileInfo extends TestFileInfo {
     let nameParts = removeExtension(pathParts.slice(2));
     this.name = nameParts.join('.');
     this.slashName = nameParts.join('/');
+
+    this._toString = `${this.name} acceptance-test`;
   }
 }
 
